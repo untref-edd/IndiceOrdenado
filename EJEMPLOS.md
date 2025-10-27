@@ -48,6 +48,12 @@ docs = indice.buscar_exacto("hobbit")
 print(f"Documentos con 'hobbit': {docs}")
 # Output: Documentos con 'hobbit': ['Bombadil', 'Introduccion']
 
+# Ver el posting list (set de doc_ids) para un término
+if "hobbit" in indice.indice:
+    doc_ids = indice.indice["hobbit"]
+    print(f"Posting list para 'hobbit': {doc_ids}")
+    # Output: Posting list para 'hobbit': {0, 2}
+
 # Búsqueda por prefijo
 resultados = indice.buscar_prefijo("drag")
 for termino, docs in resultados.items():
@@ -237,7 +243,7 @@ make demo
 # Ejecutar tests (incluye test de búsqueda con comodín en medio)
 make test
 # o: python test_indice.py
-````
+```
 
 Esto mostrará ejemplos de todas las funcionalidades automáticamente.
 
@@ -250,10 +256,11 @@ make run
 ```
 
 Este script:
+
 1. Verifica si existe el índice
-2. Pregunta si quieres reconstruirlo (si existe)
-3. Crea/actualiza el índice
-4. Lanza el buscador interactivo
+1. Pregunta si quieres reconstruirlo (si existe)
+1. Crea/actualiza el índice
+1. Lanza el buscador interactivo
 
 ## Ejemplos avanzados
 

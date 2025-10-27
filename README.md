@@ -14,7 +14,7 @@ Implementación de un índice ordenado utilizando **Árboles B+** de la bibliote
   - Búsqueda por prefijo (términos que empiezan con...)
   - Búsqueda por sufijo (términos que terminan con...) usando índice con palabras invertidas
   - Búsqueda con comodines (`*` y `?`)
-  - **Búsqueda optimizada prefijo*sufijo**: Usa ambos árboles B+ con intersección AND
+  - **Búsqueda optimizada prefijo\*sufijo**: Usa ambos árboles B+ con intersección AND
 - **Interfaz CLI**: Interfaz de línea de comandos interactiva
 - **Normalización**: Conversión a minúsculas y eliminación de puntuación
 
@@ -143,12 +143,14 @@ make test      # Ejecutar tests
 ## 💡 Ejemplos de uso
 
 ### Búsqueda exacta
+
 ```
 🔍 Buscando término exacto: 'tolkien'
 ✅ Encontrado en: [Introduccion, Niggle]
 ```
 
 ### Búsqueda por prefijo
+
 ```
 🔍 Buscando términos que empiecen con: 'hobbi'
 TÉRMINOS QUE EMPIEZAN CON 'hobbi'
@@ -160,6 +162,7 @@ Documentos únicos: 3
 ```
 
 ### Búsqueda con comodines
+
 ```
 🔍 Buscando patrón: 'h*bit'
 TÉRMINOS QUE COINCIDEN CON 'h*bit'
@@ -184,30 +187,34 @@ El índice utiliza `OOBTree` de la biblioteca `BTrees`, que implementa un árbol
 ```python
 IndiceOrdenado:
   ├── indice: OOBTree
-  │     └── término → OOBTree (doc_id → True)
+  │     └── término → set de doc_ids {1, 3, 5}
   ├── indice_invertido: OOBTree
-  │     └── término_invertido → OOBTree (doc_id → True)
+  │     └── término_invertido → set de doc_ids {1, 3, 5}
   ├── documentos: OOBTree
   │     └── doc_id → nombre_documento
   └── doc_counter: int
 ```
 
-### Búsqueda optimizada con * en medio (prefijo*sufijo)
+### Búsqueda optimizada con * en medio (prefijo\*sufijo)
 
 La búsqueda con comodín en el medio usa **ambos árboles B+** para máxima eficiencia:
 
 1. **Búsqueda por prefijo** en el índice normal: `indice.keys(min=prefijo)`
+
    - Aprovecha el orden lexicográfico del árbol B+
    - Complejidad: O(log N + K) donde K = términos con el prefijo
 
-2. **Búsqueda por sufijo** en el índice con palabras invertidas: `indice_invertido.keys(min=sufijo_invertido)`
+1. **Búsqueda por sufijo** en el índice con palabras invertidas: `indice_invertido.keys(min=sufijo_invertido)`
+
    - Convierte búsqueda por sufijo en búsqueda por prefijo (palabra invertida)
    - Complejidad: O(log N + M) donde M = términos con el sufijo
 
-3. **Intersección (AND)** de ambos conjuntos
+1. **Intersección (AND)** de ambos conjuntos
+
    - Complejidad: O(min(K, M))
 
 **Ejemplo**: `ca*do`
+
 - Índice normal: busca términos que empiezan con "ca" → 316 términos
 - Índice con palabras invertidas: busca términos invertidos que empiezan con "od" → 947 términos
 - Intersección: 23 términos finales (cansado, callado, cambiado, etc.)
@@ -231,6 +238,7 @@ python test_indice.py
 ```
 
 Los tests verifican:
+
 - Operaciones básicas del índice
 - Búsquedas exactas, por prefijo, sufijo y comodines
 - Persistencia en ZODB
@@ -249,7 +257,7 @@ Los tests verifican:
 |---------|-----------------|----------------|
 | **Estructura** | Índice invertido (BSBI) | Árboles B+ (OOBTree) |
 | **Almacenamiento** | Archivos binarios custom | ZODB |
-| **Búsquedas** | Booleanas (AND, OR, NOT) | Comodines (*, ?) |
+| **Búsquedas** | Booleanas (AND, OR, NOT) | Comodines (\*, ?) |
 | **Compresión** | Front coding + VB | No (ZODB se encarga) |
 | **Ordenamiento** | Requiere sort externo | Nativo en B+ |
 

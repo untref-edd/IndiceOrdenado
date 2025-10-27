@@ -33,6 +33,7 @@ make run       # Proceso completo (indexar + buscar)
 ## Ejemplos rápidos
 
 ### Búsqueda exacta
+
 ```
 Opción: 0
 Término: hobbit
@@ -40,6 +41,7 @@ Término: hobbit
 ```
 
 ### Búsqueda por prefijo
+
 ```
 Opción: 1
 Prefijo: hobbi
@@ -48,6 +50,7 @@ Prefijo: hobbi
 ```
 
 ### Búsqueda con comodines
+
 ```
 Opción: 3
 Patrón: h*bit
@@ -55,6 +58,7 @@ Patrón: h*bit
 ```
 
 ### Búsqueda con * en medio
+
 ```
 Opción: 4
 Patrón: ca*do
@@ -89,13 +93,14 @@ IndiceOrdenado/
 
 ## Características principales
 
-✅ **Árboles B+** - Estructura eficiente y ordenada  
-✅ **Doble índice** - Índice normal + índice con palabras invertidas  
-✅ **Persistencia ZODB** - Almacenamiento en disco sin configuración  
-✅ **Búsquedas con comodines** - Patrones `*` y `?`  
-✅ **Búsqueda prefijo\*sufijo optimizada** - Usa ambos árboles con intersección AND  
-✅ **Interfaz CLI** - Búsquedas interactivas  
-✅ **Tests completos** - Validación de funcionalidad  
+✅ **Árboles B+** - Estructura eficiente y ordenada\
+✅ **Doble índice** - Índice normal + índice con palabras invertidas\
+✅ **Sets de postings** - `indice["palabra"] = {doc_id1, doc_id2}` - estructura simple y eficiente\
+✅ **Persistencia ZODB** - Almacenamiento en disco sin configuración\
+✅ **Búsquedas con comodines** - Patrones `*` y `?`\
+✅ **Búsqueda prefijo\*sufijo optimizada** - Usa ambos árboles con intersección AND\
+✅ **Interfaz CLI** - Búsquedas interactivas\
+✅ **Tests completos** - Validación de funcionalidad
 
 ## Soporte
 

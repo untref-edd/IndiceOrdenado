@@ -70,14 +70,15 @@ from persistent import Persistent
 class IndiceOrdenado(Persistent):
     def __init__(self):
         super().__init__()
-        self.indice = OOBTree()
-        self.indice_invertido = OOBTree()  # Índice de palabras invertidas
+        self.indice = OOBTree()  # término -> set de doc_ids
+        self.indice_invertido = OOBTree()  # término invertido -> set de doc_ids
         self.documentos = OOBTree()
         self.doc_counter = 0
 ```
 
 - Hereda de `Persistent` para que ZODB la persista
 - Mantiene **dos árboles B+**: uno normal y uno con palabras invertidas
+- Cada término mapea a un **set de Python** con los doc_ids (postings)
 - Cambios a atributos se detectan automáticamente
 - Se guarda en la base de datos con `transaction.commit()`
 
@@ -88,11 +89,9 @@ class IndiceOrdenado(Persistent):
 ```
 IndiceOrdenado (Persistent)
 ├── indice: OOBTree
-│   └── término (str) → OOBTree
-│       └── doc_id (int) → True (bool)
+│   └── término (str) → set de doc_ids {1, 3, 5}
 ├── indice_invertido: OOBTree
-│   └── término_invertido (str) → OOBTree
-│       └── doc_id (int) → True (bool)
+│   └── término_invertido (str) → set de doc_ids {1, 3, 5}
 ├── documentos: OOBTree
 │   └── doc_id (int) → nombre_doc (str)
 └── doc_counter: int
@@ -100,28 +99,35 @@ IndiceOrdenado (Persistent)
 
 #### Diseño
 
-- **`indice`**: Mapea cada término a un OOBTree de doc_ids
-  - Uso de OOBTree anidado permite eficiencia en operaciones de conjuntos
-  - Cada doc_id apunta a `True` (simula un set)
-  
-- **`indice_invertido`**: Mapea cada término **invertido** a un OOBTree de doc_ids
+- **`indice`**: Mapea cada término a un set de doc_ids
+
+  - Uso de set nativo de Python para operaciones eficientes
+  - Garantiza unicidad de doc_ids por término
+  - Ejemplo: `indice["hobbit"] = {1, 3, 5}`
+
+- **`indice_invertido`**: Mapea cada término **invertido** a un set de doc_ids
+
   - Permite búsquedas eficientes por sufijo (convertidas a búsquedas por prefijo)
   - Mismo esquema que el índice normal pero con palabras al revés
-  
+  - Ejemplo: `indice_invertido["tibboh"] = {1, 3, 5}`
+
 - **`documentos`**: Mapea doc_ids a nombres de documentos
+
   - Permite recuperar nombres legibles desde IDs internos
-  
+
 - **`doc_counter`**: Contador incremental para asignar IDs únicos
 
 ### Ventajas del diseño
 
 1. **Ordenamiento automático**: Los términos se mantienen ordenados sin sort externo
-2. **Búsquedas eficientes**: O(log n) para búsqueda exacta
-3. **Prefijos rápidos**: `keys(min=prefijo)` aprovecha el orden
-4. **Sufijos rápidos**: Índice con palabras invertidas convierte sufijos en prefijos
-5. **Búsqueda prefijo*sufijo optimizada**: Intersección de ambos árboles
-6. **Persistencia transparente**: ZODB maneja serialización automáticamente
-7. **Sin compresión manual**: ZODB optimiza el almacenamiento internamente
+1. **Búsquedas eficientes**: O(log n) para búsqueda exacta
+1. **Prefijos rápidos**: `keys(min=prefijo)` aprovecha el orden
+1. **Sufijos rápidos**: Índice con palabras invertidas convierte sufijos en prefijos
+1. **Búsqueda prefijo\*sufijo optimizada**: Intersección de sets sobre búsquedas en ambos árboles
+1. **Sets nativos**: Operaciones de conjunto eficientes (add, union, intersection)
+1. **Postings simples**: `indice["palabra"] = {doc_id1, doc_id2}` - estructura clara
+1. **Persistencia transparente**: ZODB maneja serialización automáticamente
+1. **Sin compresión manual**: ZODB optimiza el almacenamiento internamente
 
 ## Operaciones
 
@@ -144,14 +150,14 @@ def agregar_documento(nombre_doc: str, contenido: str) -> int:
     # Agregar al índice
     for termino in terminos_unicos:
         if termino not in self.indice:
-            self.indice[termino] = OOBTree()
-        self.indice[termino][doc_id] = True
+            self.indice[termino] = set()
+        self.indice[termino].add(doc_id)
         
         # Agregar también al índice con palabras invertidas
         termino_invertido = termino[::-1]
         if termino_invertido not in self.indice_invertido:
-            self.indice_invertido[termino_invertido] = OOBTree()
-        self.indice_invertido[termino_invertido][doc_id] = True
+            self.indice_invertido[termino_invertido] = set()
+        self.indice_invertido[termino_invertido].add(doc_id)
     
     return doc_id
 ```
@@ -165,11 +171,14 @@ def buscar_exacto(termino: str) -> List[str]:
     termino_norm = self.normalizar_termino(termino)
     if termino_norm not in self.indice:
         return []
-    doc_ids = list(self.indice[termino_norm].keys())
+    doc_ids = sorted(self.indice[termino_norm])
     return [self.documentos[doc_id] for doc_id in doc_ids]
 ```
 
-**Complejidad**: O(log N + D) donde N = términos, D = documentos con el término
+**Complejidad**: O(log N + D log D) donde N = términos, D = documentos con el término
+
+- O(log N): buscar término en el árbol B+
+- O(D log D): ordenar los doc_ids del set
 
 ### Búsqueda por Prefijo
 
@@ -182,13 +191,13 @@ def buscar_prefijo(prefijo: str) -> Dict[str, List[str]]:
     for termino in self.indice.keys(min=prefijo_norm):
         if not termino.startswith(prefijo_norm):
             break
-        doc_ids = list(self.indice[termino].keys())
+        doc_ids = sorted(self.indice[termino])
         resultados[termino] = [self.documentos[id] for id in doc_ids]
     
     return resultados
 ```
 
-**Complejidad**: O(log N + M) donde M = términos que empiezan con el prefijo
+**Complejidad**: O(log N + M * D log D) donde M = términos con prefijo, D = docs promedio por término
 
 **Ventaja del Árbol B+**: No necesita recorrer todo el índice, aprovecha el orden
 
@@ -207,13 +216,13 @@ def buscar_sufijo(sufijo: str) -> Dict[str, List[str]]:
         
         # Recuperar el término original
         termino = termino_inv[::-1]
-        doc_ids = list(self.indice_invertido[termino_inv].keys())
+        doc_ids = sorted(self.indice_invertido[termino_inv])
         resultados[termino] = [self.documentos[id] for id in doc_ids]
     
     return resultados
 ```
 
-**Complejidad**: O(log N + M) donde M = términos que terminan con el sufijo
+**Complejidad**: O(log N + M * D log D) donde M = términos con sufijo, D = docs promedio por término
 
 **Ventaja del índice con palabras invertidas**: Convierte búsqueda por sufijo en búsqueda por prefijo
 
@@ -233,17 +242,22 @@ def buscar_comodin(patron: str) -> Dict[str, List[str]]:
     resultados = {}
     for termino in self.indice.keys():
         if regex.match(termino):
-            doc_ids = list(self.indice[termino].keys())
+            doc_ids = sorted(self.indice[termino])
             resultados[termino] = [self.documentos[id] for id in doc_ids]
     
     return resultados
 ```
 
-**Complejidad**: O(N) - debe verificar cada término contra el patrón
+**Complejidad**: O(N * R + M * D log D)
+
+- N = todos los términos del índice
+- R = costo de evaluar regex
+- M = términos que coinciden
+- D = docs promedio por término
 
 **Optimización posible**: Si el patrón empieza con texto sin comodín, usar prefijo
 
-### Búsqueda con Comodín en Medio (prefijo*sufijo)
+### Búsqueda con Comodín en Medio (prefijo\*sufijo)
 
 ```python
 def buscar_comodin_medio(patron: str) -> Dict[str, List[str]]:
@@ -258,7 +272,7 @@ def buscar_comodin_medio(patron: str) -> Dict[str, List[str]]:
     for termino in self.indice.keys(min=prefijo):
         if not termino.startswith(prefijo):
             break
-            terminos_con_prefijo.add(termino)
+        terminos_con_prefijo.add(termino)
     
     # 2. Buscar términos con el sufijo en el índice con palabras invertidas
     sufijo_invertido = sufijo[::-1]
@@ -267,28 +281,34 @@ def buscar_comodin_medio(patron: str) -> Dict[str, List[str]]:
         if not termino_inv.startswith(sufijo_invertido):
             break
         termino = termino_inv[::-1]
-        terminos_con_sufijo.add(termino)    # 3. Intersección (AND) de ambos conjuntos
+        terminos_con_sufijo.add(termino)
+    
+    # 3. Intersección (AND) de ambos conjuntos de términos
     terminos_coincidentes = terminos_con_prefijo & terminos_con_sufijo
     
     # 4. Construir resultado con documentos
     resultados = {}
     for termino in sorted(terminos_coincidentes):
-        doc_ids = list(self.indice[termino].keys())
+        doc_ids = sorted(self.indice[termino])
         resultados[termino] = [self.documentos[id] for id in doc_ids]
     
     return resultados
 ```
 
-**Complejidad**: O(log N + K + log N + M + min(K,M))
+**Complejidad**: O(log N + K + log N + M + I + I * D log D)
+
 - K = términos con el prefijo
 - M = términos con el sufijo
-- Intersección: O(min(K, M))
+- I = tamaño de la intersección (términos coincidentes)
+- D = docs promedio por término
+- Intersección de sets: O(min(K, M)) ≈ O(I)
 
 **Ventaja clave**: No usa filtros regex, solo operaciones de conjunto sobre búsquedas eficientes en B+
 
 **Ejemplo**: `ca*do`
+
 - Búsqueda por prefijo "ca": 316 términos
-- Búsqueda por sufijo "do": 947 términos  
+- Búsqueda por sufijo "do": 947 términos
 - Intersección: 23 términos (cansado, callado, cambiado, etc.)
 - vs Escaneo completo: 12,269 términos
 - **Mejora: ~9.7x más rápido**
@@ -338,7 +358,7 @@ storage = ZODB.FileStorage.FileStorage('indice.fs', read_only=True)
 | **Ordenamiento** | Sort externo en bloques | Automático en B+ |
 | **Persistencia** | Archivos binarios custom | ZODB |
 | **Compresión** | Front coding + VB | ZODB interno |
-| **Búsquedas** | Booleanas (AND/OR/NOT) | Comodines (*/?) |
+| **Búsquedas** | Booleanas (AND/OR/NOT) | Comodines (\*/?) |
 | **Prefijos** | Requiere escaneo | Eficiente con B+ |
 | **Complejidad** | O(n log n) construcción | O(n log n) inserción |
 | **Ventajas** | Compresión explícita | Simplicidad, orden |
@@ -365,19 +385,19 @@ Disco: ~2.5 MB (indice.fs)
 ### Limitaciones actuales
 
 1. **Búsqueda por sufijo lenta**: Requiere recorrer todo el índice
-2. **Sin compresión explícita**: Ocupa más espacio que índice comprimido
-3. **Sin búsquedas booleanas**: Solo soporta comodines, no AND/OR/NOT
-4. **Términos normalizados**: Pierde información de mayúsculas/acentos
+1. **Sin compresión explícita**: Ocupa más espacio que índice comprimido
+1. **Sin búsquedas booleanas**: Solo soporta comodines, no AND/OR/NOT
+1. **Términos normalizados**: Pierde información de mayúsculas/acentos
 
 ### Mejoras posibles
 
 1. **Índice invertido de sufijos**: Para búsquedas eficientes por sufijo
-2. **Trigramas/N-gramas**: Para búsquedas difusas (fuzzy matching)
-3. **Operaciones booleanas**: Agregar AND/OR/NOT combinando resultados
-4. **Ranking**: TF-IDF o BM25 para ordenar resultados por relevancia
-5. **Stemming/Lematización**: Normalización morfológica
-6. **Stop words**: Filtrar palabras comunes
-7. **Búsquedas fonéticas**: Soundex, Metaphone para similitud de sonido
+1. **Trigramas/N-gramas**: Para búsquedas difusas (fuzzy matching)
+1. **Operaciones booleanas**: Agregar AND/OR/NOT combinando resultados
+1. **Ranking**: TF-IDF o BM25 para ordenar resultados por relevancia
+1. **Stemming/Lematización**: Normalización morfológica
+1. **Stop words**: Filtrar palabras comunes
+1. **Búsquedas fonéticas**: Soundex, Metaphone para similitud de sonido
 
 ## Referencias
 
