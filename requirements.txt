@@ -1,0 +1,4 @@
+ZODB>=5.8.0
+BTrees>=5.0
+transaction>=4.0
+persistent>=5.0
