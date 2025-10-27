@@ -22,12 +22,15 @@ class IndiceOrdenado(Persistent):
     
     Estructura:
     - indice: OOBTree (término -> lista de documentos)
+    - indice_invertido: OOBTree (término invertido -> término original)
     - documentos: OOBTree (doc_id -> nombre del documento)
     """
     
     def __init__(self):
         super().__init__()
         self.indice = OOBTree()  # término -> set de doc_ids
+        # término invertido -> término original
+        self.indice_invertido = OOBTree()
         self.documentos = OOBTree()  # doc_id -> nombre del documento
         self.doc_counter = 0
     
@@ -66,6 +69,12 @@ class IndiceOrdenado(Persistent):
             if termino not in self.indice:
                 self.indice[termino] = OOBTree()
             self.indice[termino][doc_id] = True
+            
+            # Agregar también al índice con palabras invertidas
+            termino_invertido = termino[::-1]  # Invertir la palabra
+            if termino_invertido not in self.indice_invertido:
+                self.indice_invertido[termino_invertido] = OOBTree()
+            self.indice_invertido[termino_invertido][doc_id] = True
         
         return doc_id
     
@@ -115,6 +124,7 @@ class IndiceOrdenado(Persistent):
     def buscar_sufijo(self, sufijo: str) -> Dict[str, List[str]]:
         """
         Busca todos los términos que terminan con el sufijo dado.
+        Usa el índice con palabras invertidas para búsqueda eficiente.
         
         Args:
             sufijo: Sufijo a buscar
@@ -123,13 +133,19 @@ class IndiceOrdenado(Persistent):
             Diccionario {término -> lista de documentos}
         """
         sufijo_norm = self.normalizar_termino(sufijo)
+        sufijo_invertido = sufijo_norm[::-1]
         resultados = {}
         
-        for termino in self.indice.keys():
-            if termino.endswith(sufijo_norm):
-                doc_ids = list(self.indice[termino].keys())
-                nombres_docs = [self.documentos[doc_id] for doc_id in doc_ids]
-                resultados[termino] = nombres_docs
+        # Buscar en el índice con palabras invertidas
+        for termino_inv in self.indice_invertido.keys(min=sufijo_invertido):
+            if not termino_inv.startswith(sufijo_invertido):
+                break
+            
+            # Recuperar el término original
+            termino = termino_inv[::-1]
+            doc_ids = list(self.indice_invertido[termino_inv].keys())
+            nombres_docs = [self.documentos[doc_id] for doc_id in doc_ids]
+            resultados[termino] = nombres_docs
         
         return resultados
     
@@ -171,6 +187,71 @@ class IndiceOrdenado(Persistent):
         
         return resultados
     
+    def buscar_comodin_medio(self, patron: str) -> Dict[str, List[str]]:
+        """
+        Busca términos con comodín en el medio (prefijo*sufijo).
+        Usa ambos árboles B+ para eficiencia: índice para prefijo,
+        índice con palabras invertidas para sufijo, luego intersección (AND).
+        
+        Ejemplo: ca*do encuentra: cansado, callado, cambiado, etc.
+        
+        Args:
+            patron: Patrón con * en el medio (ej: "ca*do")
+            
+        Returns:
+            Diccionario {término -> lista de documentos}
+        """
+        # Normalizar patron
+        patron_norm = patron.lower()
+        patron_norm = re.sub(r'[^\w*]', '', patron_norm)
+        
+        # Verificar que tenga exactamente un * en el medio
+        if patron_norm.count('*') != 1:
+            # Si no tiene exactamente un *, usar búsqueda normal
+            return self.buscar_comodin(patron)
+        
+        # Separar en prefijo y sufijo
+        partes = patron_norm.split('*')
+        if len(partes) != 2:
+            return {}
+        
+        prefijo = partes[0]
+        sufijo = partes[1]
+        
+        # Si prefijo o sufijo vacíos, usar métodos especializados
+        if not prefijo:
+            return self.buscar_sufijo(sufijo)
+        if not sufijo:
+            return self.buscar_prefijo(prefijo)
+        
+        # 1. Buscar términos con el prefijo en el índice normal
+        terminos_con_prefijo = set()
+        for termino in self.indice.keys(min=prefijo):
+            if not termino.startswith(prefijo):
+                break
+            terminos_con_prefijo.add(termino)
+        
+        # 2. Buscar términos con el sufijo en el índice con palabras invertidas
+        sufijo_invertido = sufijo[::-1]
+        terminos_con_sufijo = set()
+        for termino_inv in self.indice_invertido.keys(min=sufijo_invertido):
+            if not termino_inv.startswith(sufijo_invertido):
+                break
+            termino = termino_inv[::-1]
+            terminos_con_sufijo.add(termino)
+        
+        # 3. Intersección (AND) de ambos conjuntos
+        terminos_coincidentes = terminos_con_prefijo & terminos_con_sufijo
+        
+        # 4. Construir resultado con documentos
+        resultados = {}
+        for termino in sorted(terminos_coincidentes):
+            doc_ids = list(self.indice[termino].keys())
+            nombres_docs = [self.documentos[doc_id] for doc_id in doc_ids]
+            resultados[termino] = nombres_docs
+        
+        return resultados
+    
     def obtener_estadisticas(self) -> Dict:
         """Retorna estadísticas del índice."""
         return {
@@ -207,6 +288,10 @@ def crear_indice(directorio_corpus: str, archivo_db: str = 'indice.fs') -> Indic
         indice = root.indice
         # Limpiar índice existente
         indice.indice.clear()
+        if hasattr(indice, 'indice_invertido'):
+            indice.indice_invertido.clear()
+        else:
+            indice.indice_invertido = OOBTree()
         indice.documentos.clear()
         indice.doc_counter = 0
     

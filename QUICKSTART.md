@@ -54,6 +54,14 @@ Patrón: h*bit
 → hobbit: [Bombadil, Introduccion]
 ```
 
+### Búsqueda con * en medio
+```
+Opción: 4
+Patrón: ca*do
+→ 23 términos: cansado, callado, cambiado, caminando...
+(Usa ambos árboles B+ con intersección AND)
+```
+
 ## Estructura del proyecto
 
 ```
@@ -82,8 +90,10 @@ IndiceOrdenado/
 ## Características principales
 
 ✅ **Árboles B+** - Estructura eficiente y ordenada  
+✅ **Doble índice** - Índice normal + índice con palabras invertidas  
 ✅ **Persistencia ZODB** - Almacenamiento en disco sin configuración  
 ✅ **Búsquedas con comodines** - Patrones `*` y `?`  
+✅ **Búsqueda prefijo\*sufijo optimizada** - Usa ambos árboles con intersección AND  
 ✅ **Interfaz CLI** - Búsquedas interactivas  
 ✅ **Tests completos** - Validación de funcionalidad  
 

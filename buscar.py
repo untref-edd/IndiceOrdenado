@@ -133,6 +133,15 @@ class BuscadorCLI:
         self.formatear_resultados(resultados, 
                                   f"TÉRMINOS QUE COINCIDEN CON '{patron}'")
     
+    def buscar_comodin_medio(self, patron: str):
+        """Búsqueda con comodín en el medio (prefijo*sufijo)."""
+        print(f"\n🔍 Buscando patrón con * en el medio: '{patron}'")
+        print("   (Usando ambos árboles B+ con intersección AND)")
+
+        resultados = self.indice.buscar_comodin_medio(patron)
+        self.formatear_resultados(resultados,
+                                  f"TÉRMINOS QUE COINCIDEN CON '{patron}'")
+    
     def mostrar_menu(self):
         """Muestra el menú principal."""
         print("\n" + "="*60)
@@ -143,49 +152,59 @@ class BuscadorCLI:
         print("  1 - Búsqueda por prefijo (ej: 'hobbi*')")
         print("  2 - Búsqueda por sufijo (ej: '*ción')")
         print("  3 - Búsqueda con comodines (ej: 'h?bbit', 'ho*')")
-        print("  4 - Ver estadísticas del índice")
-        print("  5 - Salir")
+        print("  4 - Búsqueda con * en medio (ej: 'ca*do', 'ho*bit')")
+        print("  5 - Ver estadísticas del índice")
+        print("  6 - Salir")
         print("="*60)
     
     def ejecutar(self):
         """Ejecuta el bucle principal del CLI."""
         self.mostrar_estadisticas()
-        
+
         while True:
             try:
                 self.mostrar_menu()
-                opcion = input("\nSelecciona una opción (0-5): ").strip()
-                
-                if opcion == '5':
+                opcion = input("\nSelecciona una opción (0-6): ").strip()
+
+                if opcion == '6':
                     print("\n👋 ¡Hasta luego!\n")
                     break
-                
-                elif opcion == '4':
+
+                elif opcion == '5':
                     self.mostrar_estadisticas()
-                
+
                 elif opcion == '0':
                     termino = input("\nIngresa el término a buscar: ").strip()
                     if termino:
                         self.buscar_exacto(termino)
-                
+
                 elif opcion == '1':
                     prefijo = input("\nIngresa el prefijo (sin *): ").strip()
                     if prefijo:
                         self.buscar_prefijo(prefijo)
-                
+
                 elif opcion == '2':
                     sufijo = input("\nIngresa el sufijo (sin *): ").strip()
                     if sufijo:
                         self.buscar_sufijo(sufijo)
-                
+
                 elif opcion == '3':
-                    patron = input("\nIngresa el patrón (* = cualquier secuencia, ? = un carácter): ").strip()
+                    prompt = "\nIngresa el patrón "
+                    prompt += "(* = cualquier secuencia, ? = un carácter): "
+                    patron = input(prompt).strip()
                     if patron:
                         self.buscar_comodin(patron)
-                
+
+                elif opcion == '4':
+                    prompt = "\nIngresa el patrón con * en medio "
+                    prompt += "(ej: ca*do): "
+                    patron = input(prompt).strip()
+                    if patron:
+                        self.buscar_comodin_medio(patron)
+
                 else:
                     print("\n❌ Opción no válida. Intenta de nuevo.\n")
-                
+
             except KeyboardInterrupt:
                 print("\n\n👋 Búsqueda cancelada. ¡Hasta luego!\n")
                 break

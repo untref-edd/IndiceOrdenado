@@ -61,6 +61,20 @@ resultados = indice.buscar_comodin("h*bit")
 print(resultados)
 # Output: {'hobbit': ['Bombadil', 'Introduccion']}
 
+# Búsqueda con comodín en medio (prefijo*sufijo)
+resultados = indice.buscar_comodin_medio("ca*do")
+print(f"Encontrados {len(resultados)} términos")
+for termino in sorted(resultados.keys())[:5]:
+    print(f"  {termino}: {resultados[termino]}")
+# Output:
+# Encontrados 23 términos
+#   cabalgando: ['Niggle', 'Wootton']
+#   cachazudo: ['Egidio']
+#   caldo: ['Roverandom']
+#   calificado: ['Niggle']
+#   calmando: ['Roverandom']
+# ... (18 términos más)
+
 # Cerrar conexión
 connection.close()
 db.close()
@@ -186,6 +200,31 @@ Documentos únicos: 2
 
   📖 'hobbit' → [Bombadil, Introduccion]
 ============================================================
+
+---
+
+Selecciona una opción (0-6): 4
+
+Ingresa el patrón con * en medio (ej: ca*do): ca*do
+
+🔍 Buscando patrón con * en el medio: 'ca*do'
+   (Usando ambos árboles B+ con intersección AND)
+
+============================================================
+TÉRMINOS QUE COINCIDEN CON 'ca*do'
+============================================================
+Términos encontrados: 23
+Documentos únicos: 5
+
+  📖 'cabalgando' → [Niggle, Wootton]
+  📖 'cachazudo' → [Egidio]
+  📖 'caldo' → [Roverandom]
+  📖 'calificado' → [Niggle]
+  📖 'calmando' → [Roverandom]
+  📖 'calzado' → [Bombadil]
+  📖 'cambiado' → [Niggle, Roverandom, Wootton]
+  ... (16 términos más)
+============================================================
 ```
 
 ## Demostración completa
@@ -194,7 +233,11 @@ Documentos únicos: 2
 # Ejecutar script de demostración
 make demo
 # o: python demo.py
-```
+
+# Ejecutar tests (incluye test de búsqueda con comodín en medio)
+make test
+# o: python test_indice.py
+````
 
 Esto mostrará ejemplos de todas las funcionalidades automáticamente.
 

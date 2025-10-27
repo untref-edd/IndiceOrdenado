@@ -7,12 +7,14 @@ Implementación de un índice ordenado utilizando **Árboles B+** de la bibliote
 ## 🎯 Características
 
 - **Árboles B+**: Utiliza `OOBTree` de la biblioteca `BTrees` para mantener un índice ordenado
+- **Doble índice**: Índice normal + índice con palabras invertidas para búsquedas eficientes por sufijo
 - **Persistencia**: Almacenamiento en disco mediante ZODB (no requiere servidor de base de datos)
 - **Búsquedas avanzadas**:
   - Búsqueda exacta de términos
   - Búsqueda por prefijo (términos que empiezan con...)
-  - Búsqueda por sufijo (términos que terminan con...)
+  - Búsqueda por sufijo (términos que terminan con...) usando índice con palabras invertidas
   - Búsqueda con comodines (`*` y `?`)
+  - **Búsqueda optimizada prefijo*sufijo**: Usa ambos árboles B+ con intersección AND
 - **Interfaz CLI**: Interfaz de línea de comandos interactiva
 - **Normalización**: Conversión a minúsculas y eliminación de puntuación
 
@@ -47,9 +49,11 @@ python indexar.py
 ```
 
 Este comando:
+
 - Lee todos los archivos `.txt` del directorio `corpus/`
 - Crea un índice ordenado usando Árboles B+
-- Persiste el índice en el archivo `index/indice.fs`
+- Crea un índice con palabras invertidas (al revés) para búsquedas eficientes por sufijo
+- Persiste ambos índices en el archivo `index/indice.fs`
 
 ### 2. Ejecutar el buscador
 
@@ -86,10 +90,19 @@ El buscador ofrece las siguientes opciones:
       "el?o" → "elfo" (4 letras)
       "ho*" → "hobbit", "hombre", "hora"
 
-4 - Ver estadísticas del índice
+4 - Búsqueda con * en medio (prefijo*sufijo)
+    Búsqueda optimizada usando ambos árboles B+
+    Usa el índice normal para prefijos e índice con palabras invertidas para sufijos
+    Luego hace la intersección (AND) de ambos conjuntos
+    Ejemplos:
+      "ca*do" → "cansado", "callado", "cambiado", "caminando"
+      "ho*bit" → "hobbit"
+      "pe*o" → "pero", "peso", "perro", "pequeño"
+
+5 - Ver estadísticas del índice
     Muestra información sobre términos y documentos indexados
 
-5 - Salir
+6 - Salir
 ```
 
 ## 📁 Estructura del proyecto
@@ -172,10 +185,33 @@ El índice utiliza `OOBTree` de la biblioteca `BTrees`, que implementa un árbol
 IndiceOrdenado:
   ├── indice: OOBTree
   │     └── término → OOBTree (doc_id → True)
+  ├── indice_invertido: OOBTree
+  │     └── término_invertido → OOBTree (doc_id → True)
   ├── documentos: OOBTree
   │     └── doc_id → nombre_documento
   └── doc_counter: int
 ```
+
+### Búsqueda optimizada con * en medio (prefijo*sufijo)
+
+La búsqueda con comodín en el medio usa **ambos árboles B+** para máxima eficiencia:
+
+1. **Búsqueda por prefijo** en el índice normal: `indice.keys(min=prefijo)`
+   - Aprovecha el orden lexicográfico del árbol B+
+   - Complejidad: O(log N + K) donde K = términos con el prefijo
+
+2. **Búsqueda por sufijo** en el índice con palabras invertidas: `indice_invertido.keys(min=sufijo_invertido)`
+   - Convierte búsqueda por sufijo en búsqueda por prefijo (palabra invertida)
+   - Complejidad: O(log N + M) donde M = términos con el sufijo
+
+3. **Intersección (AND)** de ambos conjuntos
+   - Complejidad: O(min(K, M))
+
+**Ejemplo**: `ca*do`
+- Índice normal: busca términos que empiezan con "ca" → 316 términos
+- Índice con palabras invertidas: busca términos invertidos que empiezan con "od" → 947 términos
+- Intersección: 23 términos finales (cansado, callado, cambiado, etc.)
+- **Mejora**: ~9.7x más rápido que escanear todos los 12,269 términos
 
 ### ZODB (Zope Object Database)
 

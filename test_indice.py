@@ -71,6 +71,19 @@ def test_indice_basico():
     print(f"  'el?os' → {list(resultados.keys())}")
     assert "elfos" in resultados, "Error en búsqueda con comodines"
     
+    # Test búsqueda con comodín en medio (prefijo*sufijo)
+    print("\n✓ Test búsqueda con comodín en medio:")
+    # Agregar más documentos para este test
+    indice.agregar_documento("Doc4", "el cansado hobbit caminaba")
+    indice.agregar_documento("Doc5", "cambiado por la aventura")
+    transaction.commit()
+    
+    resultados = indice.buscar_comodin_medio("ca*do")
+    print(f"  'ca*do' → {list(resultados.keys())}")
+    assert "cansado" in resultados, "Error en búsqueda con comodín en medio"
+    assert "cambiado" in resultados, "Error en búsqueda con comodín en medio"
+    assert "caminaba" not in resultados, "Error: 'caminaba' no debe coincidir"
+    
     # Limpiar
     connection.close()
     db.close()
@@ -170,6 +183,19 @@ def test_corpus_real():
         docs = indice.buscar_exacto("tolkien")
         if docs:
             print(f"\n✓ Ejemplo búsqueda 'tolkien': {docs[:3]}...")
+        
+        # Test búsqueda con comodín en medio con corpus real
+        print("\n✓ Test búsqueda con comodín en medio (corpus real):")
+        resultados = indice.buscar_comodin_medio("ca*do")
+        if resultados:
+            print(f"  'ca*do' → {len(resultados)} términos encontrados")
+            ejemplos = list(sorted(resultados.keys()))[:5]
+            print(f"  Ejemplos: {', '.join(ejemplos)}")
+            # Verificar que algunos términos esperados están
+            terminos_esperados = {"cansado", "cambiado", "caminando"}
+            encontrados = terminos_esperados & set(resultados.keys())
+            if encontrados:
+                print(f"  ✓ Términos esperados encontrados: {encontrados}")
         
         connection.close()
         db.close()
